@@ -1,3 +1,5 @@
+pick and fix for my own use... make this usable at least i hope
+
 [![](https://badge-proxy.cds.internal.unity3d.com/3f172543-d1a1-4930-9b8c-0d1286af0a12)](https://badges.cds.internal.unity3d.com/packages/com.unity.hlod/build-info?branch=master&testWorkflow=package-isolation)
 [![](https://badge-proxy.cds.internal.unity3d.com/2cb1cc7c-4d7c-4910-b2f7-26b09c938532)](https://badges.cds.internal.unity3d.com/packages/com.unity.hlod/dependants-info)
 [![](https://badge-proxy.cds.internal.unity3d.com/51af003d-dd2f-42af-9283-439f0b19fa36)](https://badges.cds.internal.unity3d.com/packages/com.unity.hlod/warnings-info?branch=master)

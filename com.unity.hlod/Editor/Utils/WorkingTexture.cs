@@ -1,11 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
+using System.Drawing;
+using System.IO;
 using Unity.Collections;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
-using TextureCompressionQuality = UnityEditor.TextureCompressionQuality;
+using Color = UnityEngine.Color;
+using File = UnityEngine.Windows.File;
+using Graphics = UnityEngine.Graphics;
 
 namespace Unity.HLODSystem.Utils
 {
@@ -378,25 +381,74 @@ namespace Unity.HLODSystem.Utils
         private void CopyFrom(Texture2D texture)
         {
             //make to texture readable.
+            var t2dPath = Path.GetFullPath(Path.Combine(Application.dataPath, "..", AssetDatabase.GetAssetPath(texture)));
             var assetImporter = AssetImporter.GetAtPath(AssetDatabase.GetAssetPath(texture));
             var textureImporter = assetImporter as TextureImporter;
             TextureImporterType type = TextureImporterType.Default;
 
             m_linear = !GraphicsFormatUtility.IsSRGBFormat(texture.graphicsFormat);
             m_wrapMode = texture.wrapMode;
-            
-            if (textureImporter)
-            {
-                type = textureImporter.textureType;
-                textureImporter.isReadable = true;
-                textureImporter.textureType = TextureImporterType.Default;
-                textureImporter.SaveAndReimport();
-            }
 
-            try
-            {
+            // try
+            // {
+                Color[] texturePixels = null;
                 int count = m_width * m_height;
-                Color[] texturePixels = texture.GetPixels();
+                if (textureImporter)
+                {
+                    var pathExtension = Path.GetExtension(t2dPath);
+                    bool isTiff = pathExtension.StartsWith(".tif", System.StringComparison.OrdinalIgnoreCase);
+                    bool isTga = pathExtension.StartsWith(".tga", System.StringComparison.OrdinalIgnoreCase);
+                    //handle tiff case：
+                    if (isTiff)
+                    {
+
+                        var riffTex = LoadTiffTexture(t2dPath);
+
+                        if (riffTex.width != texture.width || riffTex.height != texture.height)
+                        {
+                            riffTex = ScaleTexture(riffTex, texture.width, texture.height);
+                            riffTex.Apply(true, false);
+                        }
+
+                        texturePixels = riffTex.GetPixels();
+                    }
+                    else if (isTga)
+                    {
+                        Texture2D t2d = FreeImage.LoadImageToTexture(t2dPath, m_linear);
+                        if (t2d.width != texture.width || t2d.height != texture.height)
+                        {
+                            t2d = ScaleTexture(t2d, texture.width, texture.height);
+                            t2d.Apply(true, false);
+                        }
+                        texturePixels = t2d.GetPixels();
+
+                        // var tagTex2d = LoadTGA(t2dPath);
+                        // if (tagTex2d.width != texture.width || tagTex2d.height != texture.height)
+                        // {
+                        //     tagTex2d = ScaleTexture(tagTex2d, texture.width, texture.height);
+                        //     tagTex2d.Apply(true, false);
+                        // }
+                        // texturePixels = tagTex2d.GetPixels();
+                    }
+                    else
+                    {
+                        var readHolder = new Texture2D(m_width, m_height, texture.format, true, m_linear);
+                        var rawBytes = File.ReadAllBytes(t2dPath);
+                        if (!ImageConversion.LoadImage(readHolder, rawBytes))
+                        {
+                            Debug.LogError($"ImageConversion.LoadImage failed @ {rawBytes.Length}-{t2dPath}");
+                        }
+                        readHolder.Apply(true, false);
+                        texturePixels = readHolder.GetPixels();
+                    }
+                }
+                else
+                {
+                    //maybe code texture?
+//                    Debug.LogError($"textureImporter == false @ {t2dPath}", texture);    
+                    texturePixels = texture.GetPixels();
+                }
+
                 if (texturePixels.Length != count)
                 {
                     //TODO: logging
@@ -404,19 +456,143 @@ namespace Unity.HLODSystem.Utils
                 }
 
                 m_pixels.Slice(0, count).CopyFrom(texturePixels);
-            }
-            finally
-            {
-                if (textureImporter)
-                {
-                    textureImporter.isReadable = false;
-                    textureImporter.textureType = type;
-                    textureImporter.SaveAndReimport();
-                }
-            }
-
+            // }
+            // catch (Exception e)
+            // {
+            //     Debug.LogException(e);
+            // }
+        }
+        
+        Color32 IntToColor(int aCol)
+        {
+            Color32 c = default;
+            c.b = (byte)((aCol) & 0xFF);
+            c.g = (byte)((aCol>>8) & 0xFF);
+            c.r = (byte)((aCol>>16) & 0xFF);
+            c.a = (byte)((aCol>>24) & 0xFF);
+            return c;
         }
 
+        private Texture2D LoadTiffTexture(string path)
+        {
+            if (!File.Exists(path))
+            {
+                Debug.LogError("File not found: " + path);
+                return null;
+            }
+
+            try
+            {
+                using (Bitmap image = (Bitmap)Image.FromFile(path))
+                {
+                    if (image == null)
+                    {
+                        Debug.LogError("Failed to load TIFF image.");
+                        return null;
+                    }
+
+                    int width = image.Width;
+                    int height = image.Height;
+                    Texture2D texture = new Texture2D(width, height, TextureFormat.RGBA32, false, m_linear);
+
+                    for (int y = 0; y < height; y++)
+                    {
+                        for (int x = 0; x < width; x++)
+                        {
+                            System.Drawing.Color pixel = image.GetPixel(x, y);
+                            texture.SetPixel(x, height - 1 - y, new Color32(pixel.R, pixel.G, pixel.B, pixel.A)); // Flip vertically
+                        }
+                    }
+
+                    texture.Apply(true, false);
+                    return texture;
+                }
+            }
+            catch
+            {
+                Debug.LogError($"Failed to load @ {path}.");
+                throw;
+            }
+        }
+        
+        public static Texture2D ScaleTexture(Texture2D source, int width, int height)
+        {
+            var oldRt = RenderTexture.active;
+            RenderTexture rt = RenderTexture.GetTemporary(width, height);
+            RenderTexture.active = rt;
+            Graphics.Blit(source, rt);
+
+            Texture2D result = new Texture2D(width, height, source.format, false);
+            result.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+            result.Apply();
+
+            RenderTexture.active = oldRt;
+            RenderTexture.ReleaseTemporary(rt);
+
+            return result;
+        }
+        
+        
+        public static Texture2D LoadTGA(string fileName)
+        {
+            using (var imageFile = System.IO.File.OpenRead(fileName))
+            {
+                return LoadTGA(imageFile);
+            }
+        }
+     
+        public static Texture2D LoadTGA(Stream TGAStream)
+        {
+       
+            using (BinaryReader r = new BinaryReader(TGAStream))
+            {
+                // Skip some header info we don't care about.
+                // Even if we did care, we have to move the stream seek point to the beginning,
+                // as the previous method in the workflow left it at the end.
+                r.BaseStream.Seek(12, SeekOrigin.Begin);
+     
+                short width = r.ReadInt16();
+                short height = r.ReadInt16();
+                int bitDepth = r.ReadByte();
+     
+                // Skip a byte of header information we don't care about.
+                r.BaseStream.Seek(1, SeekOrigin.Current);
+     
+                Texture2D tex = new Texture2D(width, height);
+                Color32[] pulledColors = new Color32[width * height];
+     
+                if (bitDepth == 32)
+                {
+                    for (int i = 0; i < width * height; i++)
+                    {
+                        byte red = r.ReadByte();
+                        byte green = r.ReadByte();
+                        byte blue = r.ReadByte();
+                        byte alpha = r.ReadByte();
+     
+                        pulledColors [i] = new Color32(blue, green, red, alpha);
+                    }
+                } else if (bitDepth == 24)
+                {
+                    for (int i = 0; i < width * height; i++)
+                    {
+                        byte red = r.ReadByte();
+                        byte green = r.ReadByte();
+                        byte blue = r.ReadByte();
+                       
+                        pulledColors [i] = new Color32(blue, green, red, 1);
+                    }
+                } else
+                {
+                    throw new Exception("TGA texture had non 32/24 bit depth.");
+                }
+     
+                tex.SetPixels32(pulledColors);
+                tex.Apply();
+                return tex;
+     
+            }
+        }
     }
 
 }
