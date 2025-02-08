@@ -26,8 +26,6 @@ namespace Unity.HLODSystem
         private DisposableDictionary<TexturePacker.TextureAtlas, WorkingMaterial> m_createdMaterials = new DisposableDictionary<TexturePacker.TextureAtlas, WorkingMaterial>();
         private SerializableDynamicObject m_batcherOptions;
         
-        
-
         [Serializable]
         public class TextureInfo
         {

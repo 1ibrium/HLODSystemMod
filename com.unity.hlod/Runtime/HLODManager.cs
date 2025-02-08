@@ -15,7 +15,7 @@ namespace Unity.HLODSystem
         #region Singleton
 
         private static HLODManager s_instance = null;
-        private bool IsSRP => GraphicsSettings.renderPipelineAsset != null || QualitySettings.renderPipeline != null;
+        private bool IsSRP => GraphicsSettings.defaultRenderPipeline != null || QualitySettings.renderPipeline != null;
 
         public static HLODManager Instance
         {
@@ -80,7 +80,7 @@ namespace Unity.HLODSystem
                     return;
             }
 #else
-            if (cam != HLODCameraRecognizer.RecognizedCamera)
+            if (cam != HLODCameraRecognizerManager.ActiveCamera)
                 return;
 #endif
 

@@ -12,8 +12,14 @@ using UnityEngine.Experimental.Rendering;
 
 namespace Unity.HLODSystem.Streaming
 {
-    class Unsupported : IStreamingBuilder
+    public class Unsupported : IStreamingBuilder
     {
+        public Unsupported(IGeneratedResourceManager mManager, SerializableDynamicObject mStreamingOptions)
+        {
+            m_manager = mManager;
+            m_streamingOptions = mStreamingOptions;
+        }
+
         static class Styles
         {
             public static TextureFormat[] SupportTextureFormats = new[]
@@ -123,7 +129,7 @@ namespace Unity.HLODSystem.Streaming
                     }
                 }
 
-                if (extractMaterial == true )
+                if (extractMaterial == true)
                 {
                     ExtractMaterial(data, $"{path}{root.name}");
                 }
@@ -179,7 +185,7 @@ namespace Unity.HLODSystem.Streaming
                 }
 
 
-                if ( infos[ii].WorkingObjects.Count > 0 )
+                if (infos[ii].WorkingObjects.Count > 0)
                 {
                     GameObject prefab = rootData.GetRootObject(infos[ii].Name);
                     if (prefab == null)
@@ -209,7 +215,7 @@ namespace Unity.HLODSystem.Streaming
 
         private void ExtractMaterial(HLODData hlodData, string filenamePrefix)
         {
-            Dictionary<string, HLODData.SerializableMaterial> extractedMaterials = new Dictionary<string, HLODData.SerializableMaterial>();
+            Dictionary<string, HLODData.SerializableMaterial> extractedMaterials = new();
             //save files to disk
             foreach (var hlodMaterial in hlodData.GetMaterials())
             {
@@ -287,7 +293,7 @@ namespace Unity.HLODSystem.Streaming
 
         Dictionary<SpaceNode, HLODTreeNode> convertedTable = new Dictionary<SpaceNode, HLODTreeNode>();
 
-        private HLODTreeNode ConvertNode(HLODTreeNodeContainer container, SpaceNode rootNode )
+        private HLODTreeNode ConvertNode(HLODTreeNodeContainer container, SpaceNode rootNode)
         {
             HLODTreeNode root = new HLODTreeNode();
             root.SetContainer(container);
@@ -361,7 +367,7 @@ namespace Unity.HLODSystem.Streaming
             {
                 options.AndroidCompression = TextureFormat.ETC2_RGBA8;
             }
-            if (options.iOSCompression== null)
+            if (options.iOSCompression == null)
             {
                 options.iOSCompression = TextureFormat.PVRTC_RGBA4;
             }
